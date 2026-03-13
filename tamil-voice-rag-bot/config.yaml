@@ -1,0 +1,39 @@
+project_name: tamil_voice_rag_bot
+
+paths:
+  literature_dir: data/literature
+  vector_store_dir: data/vector_store
+  output_dir: data/output
+
+speech:
+  whisper_model: small
+  language: ta
+  beam_size: 5
+  vad_filter: true
+
+embeddings:
+  model_name: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+
+retrieval:
+  collection_name: tamil_literature
+  top_k: 3
+  chunk_size: 500
+  chunk_overlap: 100
+
+llm:
+  model: gemma3:4b
+  temperature: 0.2
+  num_predict: 400
+  system_prompt: |
+    You are a Tamil literature and knowledge assistant.
+    Answer in clear Tamil.
+    Use only the provided context when possible.
+    If the context is insufficient, say so honestly.
+    Be concise, accurate, and respectful.
+
+tts:
+  enabled: false
+  model_name: tts_models/multilingual/multi-dataset/xtts_v2
+  speaker_wav: null
+  language: ta
+  output_file: data/output/reply.wav
