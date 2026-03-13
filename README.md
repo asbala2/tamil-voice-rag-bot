@@ -97,6 +97,12 @@ python rag/ingest.py --config config.yaml
 python scripts/run_demo.py --audio path/to/question.wav
 ```
 
+### 6a) Transcribe an audio file only
+
+```bash
+python speech/whisper_transcribe.py --input sample.wav
+```
+
 ### 7) Run with text input only
 
 ```bash
