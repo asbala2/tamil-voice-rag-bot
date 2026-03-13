@@ -15,7 +15,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--config", default="config.yaml", help="Path to config file")
     parser.add_argument("--question", help="Tamil text question")
     parser.add_argument("--audio", help="Path to Tamil audio file")
-    parser.add_argument("--voice-reply", action="store_true", help="Generate XTTS voice reply")
     parser.add_argument("--top-k", type=int, default=None, help="Override top-k retrieval count")
     return parser.parse_args()
 
@@ -39,8 +38,22 @@ def run_text_qa(config_path: str, question: str, top_k: int | None = None) -> No
     print(answer)
 
 
+def run_audio_qa(config_path: str, audio_path: str, top_k: int | None = None) -> None:
+    """Transcribe audio and run retrieval + Tamil answering from the transcript."""
+    from speech.whisper_transcribe import TamilWhisperTranscriber
+
+    transcriber = TamilWhisperTranscriber(config_path=config_path)
+    transcription = transcriber.transcribe_file(audio_path)
+    question_text = transcription["text"].strip()
+
+    if not question_text:
+        raise SystemExit("Unable to transcribe a Tamil question from the given audio file")
+
+    run_text_qa(config_path=config_path, question=question_text, top_k=top_k)
+
+
 def main() -> None:
-    """Run text QA directly, or run the existing audio pipeline for voice input."""
+    """Run Tamil QA from question text or from an audio file transcription."""
     args = parse_args()
 
     if not args.audio and not args.question:
@@ -50,20 +63,7 @@ def main() -> None:
         run_text_qa(config_path=args.config, question=args.question, top_k=args.top_k)
         return
 
-    from pipeline.voice_pipeline import TamilVoiceRAGPipeline
-
-    pipeline = TamilVoiceRAGPipeline(config_path=args.config)
-    result = pipeline.run_with_audio_file(args.audio, make_voice_reply=args.voice_reply)
-
-    print("\n=== Question ===")
-    print(result.question_text)
-    print("\n=== Retrieved Chunks ===")
-    print(json.dumps(result.retrieved_chunks, ensure_ascii=False, indent=2))
-    print("\n=== Answer ===")
-    print(result.answer_text)
-    if result.audio_reply_path:
-        print("\n=== Voice Reply ===")
-        print(result.audio_reply_path)
+    run_audio_qa(config_path=args.config, audio_path=args.audio, top_k=args.top_k)
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 
 A local-first voice assistant pipeline for Tamil question answering:
 
-Audio / Mic -> Whisper -> Question Text -> RAG over Tamil documents -> Ollama answer -> XTTS voice reply
+Audio / Mic -> Whisper -> Question Text -> RAG over Tamil documents -> Ollama answer
 
 ## What this starter repo includes
 
@@ -10,8 +10,6 @@ Audio / Mic -> Whisper -> Question Text -> RAG over Tamil documents -> Ollama an
 - `rag/ingest.py` - chunk Tamil text documents and build a Chroma vector store
 - `rag/retriever.py` - retrieve top-k context chunks for a question
 - `llm/ollama_client.py` - send prompt + retrieved context to Ollama
-- `tts/xtts_speak.py` - generate speech from answer text using Coqui XTTS
-- `pipeline/voice_pipeline.py` - end-to-end pipeline runner
 - `scripts/run_demo.py` - simple CLI entry point
 
 ## Suggested first MVP
@@ -20,7 +18,6 @@ Audio / Mic -> Whisper -> Question Text -> RAG over Tamil documents -> Ollama an
 2. Build the vector DB
 3. Run the pipeline with an audio file
 4. Get a Tamil text answer
-5. Optionally generate a voice reply
 
 ## Project structure
 
@@ -91,10 +88,12 @@ A sample file is already included.
 python rag/ingest.py --config config.yaml
 ```
 
-### 6) Run with an audio file
+### 6) Run end-to-end with an audio file
+
+This command transcribes audio with Whisper, retrieves relevant Tamil chunks from Chroma, and asks Ollama for a final Tamil answer.
 
 ```bash
-python scripts/run_demo.py --audio path/to/question.wav
+python scripts/run_demo.py --config config.yaml --audio path/to/question.wav
 ```
 
 ### 6a) Transcribe an audio file only
