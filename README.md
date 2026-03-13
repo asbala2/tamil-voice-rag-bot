@@ -103,10 +103,16 @@ python scripts/run_demo.py --audio path/to/question.wav
 python speech/whisper_transcribe.py --input sample.wav
 ```
 
-### 7) Run with text input only
+### 7) Run retrieval + answering with text input
 
 ```bash
-python scripts/run_demo.py --question "திருக்குறளில் தலைமை பற்றி என்ன சொல்லப்பட்டுள்ளது?"
+python scripts/run_demo.py --config config.yaml --question "திருக்குறளில் தலைமை பற்றி என்ன சொல்லப்பட்டுள்ளது?"
+```
+
+Optional: override retrieval depth.
+
+```bash
+python scripts/run_demo.py --question "திருக்குறளில் தலைமை பற்றி என்ன சொல்லப்பட்டுள்ளது?" --top-k 5
 ```
 
 ## CLI commands
