@@ -2,28 +2,58 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
-from pipeline.voice_pipeline import TamilVoiceRAGPipeline
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments for the Tamil RAG demo."""
+    parser = argparse.ArgumentParser(description="Run Tamil RAG retrieval + answering demo")
+    parser.add_argument("--config", default="config.yaml", help="Path to config file")
+    parser.add_argument("--question", help="Tamil text question")
+    parser.add_argument("--audio", help="Path to Tamil audio file")
+    parser.add_argument("--voice-reply", action="store_true", help="Generate XTTS voice reply")
+    parser.add_argument("--top-k", type=int, default=None, help="Override top-k retrieval count")
+    return parser.parse_args()
+
+
+def run_text_qa(config_path: str, question: str, top_k: int | None = None) -> None:
+    """Retrieve context from Chroma and print a Tamil answer from Ollama."""
+    from llm.ollama_client import OllamaTamilQA
+    from rag.retriever import TamilRetriever
+
+    retriever = TamilRetriever(config_path=config_path)
+    qa_client = OllamaTamilQA(config_path=config_path)
+
+    retrieved_chunks = retriever.retrieve(question, top_k=top_k)
+    answer = qa_client.answer(question, retrieved_chunks)
+
+    print("\n=== Question ===")
+    print(question)
+    print("\n=== Retrieved Chunks ===")
+    print(json.dumps(retrieved_chunks, ensure_ascii=False, indent=2))
+    print("\n=== Answer ===")
+    print(answer)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run Tamil Voice RAG Bot demo")
-    parser.add_argument("--config", default="config.yaml", help="Path to config file")
-    parser.add_argument("--audio", help="Path to Tamil audio file")
-    parser.add_argument("--question", help="Tamil text question")
-    parser.add_argument("--voice-reply", action="store_true", help="Generate XTTS voice reply")
-    args = parser.parse_args()
+    """Run text QA directly, or run the existing audio pipeline for voice input."""
+    args = parse_args()
 
     if not args.audio and not args.question:
-        raise SystemExit("Provide either --audio or --question")
+        raise SystemExit("Provide either --question or --audio")
+
+    if args.question:
+        run_text_qa(config_path=args.config, question=args.question, top_k=args.top_k)
+        return
+
+    from pipeline.voice_pipeline import TamilVoiceRAGPipeline
 
     pipeline = TamilVoiceRAGPipeline(config_path=args.config)
-
-    if args.audio:
-        result = pipeline.run_with_audio_file(args.audio, make_voice_reply=args.voice_reply)
-    else:
-        result = pipeline.run_with_text(args.question, make_voice_reply=args.voice_reply)
+    result = pipeline.run_with_audio_file(args.audio, make_voice_reply=args.voice_reply)
 
     print("\n=== Question ===")
     print(result.question_text)
