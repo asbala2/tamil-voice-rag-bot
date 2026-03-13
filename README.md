@@ -103,6 +103,13 @@ python scripts/run_demo.py --audio path/to/question.wav
 python scripts/run_demo.py --question "திருக்குறளில் தலைமை பற்றி என்ன சொல்லப்பட்டுள்ளது?"
 ```
 
+## CLI commands
+
+```bash
+python rag/ingest.py --config config.yaml
+python scripts/run_demo.py --question "திருக்குறளில் தலைமை பற்றி என்ன சொல்லப்பட்டுள்ளது?"
+```
+
 ## Notes
 
 - Start with text output first.
