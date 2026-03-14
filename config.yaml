@@ -36,4 +36,6 @@ tts:
   model_name: tts_models/multilingual/multi-dataset/xtts_v2
   speaker_wav: null
   language: ta
-  output_file: data/output/reply.wav
+  fallback_model_name: tts_models/ta/cv/vits
+  output_file: data/output/output_answer.wav
+  auto_play: true

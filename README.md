@@ -2,7 +2,7 @@
 
 A local-first voice assistant pipeline for Tamil question answering:
 
-Audio / Mic -> Whisper -> Question Text -> RAG over Tamil documents -> Ollama answer
+Audio / Mic -> Whisper -> Question Text -> RAG over Tamil documents -> Ollama answer -> Optional Coqui TTS Tamil voice reply
 
 ## What this starter repo includes
 
@@ -10,7 +10,7 @@ Audio / Mic -> Whisper -> Question Text -> RAG over Tamil documents -> Ollama an
 - `rag/ingest.py` - chunk Tamil text documents and build a Chroma vector store
 - `rag/retriever.py` - retrieve top-k context chunks for a question
 - `llm/ollama_client.py` - send prompt + retrieved context to Ollama
-- `scripts/run_demo.py` - simple CLI entry point
+- `scripts/run_demo.py` - simple CLI entry point with optional speech reply (`--speak`)
 
 ## Suggested first MVP
 
@@ -96,6 +96,12 @@ This command transcribes audio with Whisper, retrieves relevant Tamil chunks fro
 python scripts/run_demo.py --config config.yaml --audio path/to/question.wav
 ```
 
+Optional: add `--speak` to synthesize the final Tamil answer to `data/output/output_answer.wav` and attempt automatic playback.
+
+```bash
+python scripts/run_demo.py --config config.yaml --audio path/to/question.wav --speak
+```
+
 ### 6a) Transcribe an audio file only
 
 ```bash
@@ -106,6 +112,12 @@ python speech/whisper_transcribe.py --input sample.wav
 
 ```bash
 python scripts/run_demo.py --config config.yaml --question "திருக்குறளில் தலைமை பற்றி என்ன சொல்லப்பட்டுள்ளது?"
+```
+
+Optional voice reply:
+
+```bash
+python scripts/run_demo.py --config config.yaml --question "திருக்குறளில் தலைமை பற்றி என்ன சொல்லப்படுகிறது?" --speak
 ```
 
 Optional: override retrieval depth.
@@ -119,13 +131,15 @@ python scripts/run_demo.py --question "திருக்குறளில் �
 ```bash
 python rag/ingest.py --config config.yaml
 python scripts/run_demo.py --question "திருக்குறளில் தலைமை பற்றி என்ன சொல்லப்பட்டுள்ளது?"
+python scripts/run_demo.py --config config.yaml --question "திருக்குறளில் தலைமை பற்றி என்ன சொல்லப்படுகிறது?" --speak
+python scripts/run_demo.py --config config.yaml --audio path/to/question.wav --speak
 ```
 
 ## Notes
 
-- Start with text output first.
-- Add XTTS once retrieval + answer quality is acceptable.
-- On a CPU-only PC, keep models small initially.
+- Text output remains the default behavior; speech reply is optional via `--speak`.
+- Coqui TTS first tries XTTS and can fall back to a lighter Tamil model in `config.yaml`.
+- On a CPU-only PC, keep models small initially and prefer fallback when needed.
 - Use clean Tamil text files and clear audio for best results.
 
 ## Next recommended improvements
