@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-import re
+import string
 import subprocess
 import sys
 
@@ -10,6 +10,8 @@ import yaml
 
 class PiperSpeaker:
     """Tamil speech synthesis using Piper CLI and local ONNX voice files."""
+
+    _ALLOWED_PUNCTUATION = set(string.punctuation) | {"…", "“", "”", "‘", "’", "-", "–", "—"}
 
     def __init__(self, config_path: str = "config.yaml") -> None:
         """Load Piper settings from config.yaml."""
@@ -55,15 +57,24 @@ class PiperSpeaker:
             )
 
     def _sanitize_text(self, text: str) -> str:
-        """Keep Tamil and basic punctuation, removing unsafe Unicode for Piper CLI."""
-        # Remove invalid surrogate code points that can break subprocess stdin handling.
-        no_surrogates = "".join(ch for ch in text if not (0xD800 <= ord(ch) <= 0xDFFF))
+        """Keep Tamil/script-safe characters and remove invalid Unicode before Piper stdin."""
 
-        # Keep Tamil code block, whitespace, digits, and simple punctuation used in answers.
-        cleaned = re.sub(r"[^\u0B80-\u0BFF\s0-9.,!?;:'\"()\-]", "", no_surrogates)
+        def is_tamil_char(ch: str) -> bool:
+            codepoint = ord(ch)
+            return 0x0B80 <= codepoint <= 0x0BFF
 
-        # Normalize whitespace and keep fallback text so Piper always receives valid input.
-        normalized = re.sub(r"\s+", " ", cleaned).strip()
+        sanitized_chars: list[str] = []
+        for char in text:
+            codepoint = ord(char)
+
+            # Strip surrogate code points that break UTF-8 encoding in subprocess stdin.
+            if 0xD800 <= codepoint <= 0xDFFF:
+                continue
+
+            if is_tamil_char(char) or char.isdigit() or char.isspace() or char in self._ALLOWED_PUNCTUATION:
+                sanitized_chars.append(char)
+
+        normalized = " ".join("".join(sanitized_chars).split())
         return normalized or "பதில் கிடைக்கவில்லை."
 
     def synthesize(self, text: str, output_path: str | None = None) -> str:
@@ -86,11 +97,18 @@ class PiperSpeaker:
         ]
 
         safe_text = self._sanitize_text(text)
+        try:
+            stdin_bytes = safe_text.encode("utf-8")
+        except UnicodeEncodeError as exc:
+            raise RuntimeError(
+                "Piper input encoding failed after sanitization. "
+                f"Text preview: {safe_text[:120]!r}"
+            ) from exc
 
         try:
             subprocess.run(
                 command,
-                input=safe_text.encode("utf-8"),
+                input=stdin_bytes,
                 text=False,
                 check=True,
                 stdout=subprocess.DEVNULL,
@@ -102,9 +120,14 @@ class PiperSpeaker:
                 "or set tts.piper_binary in config.yaml."
             ) from exc
         except subprocess.CalledProcessError as exc:
-            stderr_bytes = exc.stderr or b""
-            stderr = stderr_bytes.decode("utf-8", errors="replace").strip()
-            raise RuntimeError(f"Piper synthesis failed. Piper stderr:\n{stderr}") from exc
+            stderr = (exc.stderr or b"").decode("utf-8", errors="replace").strip()
+            raise RuntimeError(
+                "Piper synthesis failed. "
+                f"Exit code: {exc.returncode}. "
+                f"Command: {' '.join(command)}\n"
+                f"Sanitized text preview: {safe_text[:200]!r}\n"
+                f"Piper stderr:\n{stderr or '(empty)'}"
+            ) from exc
 
         if self.auto_play:
             self._play_audio(target)
