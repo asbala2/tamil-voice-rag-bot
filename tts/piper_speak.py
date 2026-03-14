@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import array
 import json
 from pathlib import Path
 import string
@@ -167,53 +166,49 @@ class PiperSpeaker:
 
         channels, sample_width, sample_rate = self._resolve_wav_params(voice)
 
-        chunk_count = 0
         try:
-            with wave.open(str(target), "wb") as wav_file:
+            with wave.open(str(target), "w") as wav_file:
                 wav_file.setnchannels(channels)
                 wav_file.setsampwidth(sample_width)
                 wav_file.setframerate(sample_rate)
-
-                if hasattr(voice, "synthesize_stream_raw"):
-                    for raw_chunk in voice.synthesize_stream_raw(safe_text):
-                        if raw_chunk is None:
-                            continue
-
-                        if isinstance(raw_chunk, (bytes, bytearray, memoryview)):
-                            chunk_bytes = bytes(raw_chunk)
-                        elif hasattr(raw_chunk, "tobytes"):
-                            chunk_bytes = raw_chunk.tobytes()
-                        else:
-                            try:
-                                chunk_bytes = bytes(raw_chunk)
-                            except Exception:  # noqa: BLE001
-                                chunk_bytes = array.array("h", raw_chunk).tobytes()
-
-                        if not chunk_bytes:
-                            continue
-
-                        wav_file.writeframesraw(chunk_bytes)
-                        chunk_count += 1
-                else:
-                    voice.synthesize(safe_text, wav_file)
-                    chunk_count = 1
-
-                if chunk_count == 0:
-                    raise RuntimeError(
-                        "Piper returned zero audio chunks; no WAV audio frames were generated."
-                    )
+                voice.synthesize(safe_text, wav_file)
         except Exception as exc:  # noqa: BLE001
             if target.exists():
                 target.unlink(missing_ok=True)
 
-            zero_chunks = "yes" if chunk_count == 0 else "no"
             raise RuntimeError(
                 "Piper synthesis failed via Python API. "
                 f"Output path: {target!s}. "
-                f"Zero chunks returned: {zero_chunks}. "
                 f"Sanitized text preview: {safe_text[:200]!r}\n"
                 f"Original error: {exc}"
             ) from exc
+
+        try:
+            with wave.open(str(target), "r") as wav_file:
+                frame_count = wav_file.getnframes()
+                if frame_count <= 0:
+                    raise RuntimeError(
+                        "Piper created an empty WAV file (0 frames). "
+                        "Check that your model supports the selected text and language."
+                    )
+        except Exception as exc:  # noqa: BLE001
+            if target.exists():
+                target.unlink(missing_ok=True)
+            raise RuntimeError(
+                "Piper synthesis produced an invalid or empty WAV file. "
+                f"Output path: {target!s}. "
+                f"Sanitized text preview: {safe_text[:200]!r}\n"
+                f"Original error: {exc}"
+            ) from exc
+
+        file_size = target.stat().st_size if target.exists() else 0
+        if file_size <= 44:
+            target.unlink(missing_ok=True)
+            raise RuntimeError(
+                "Piper synthesis produced an empty WAV file with no audio payload. "
+                f"Output path: {target!s}. "
+                f"Sanitized text preview: {safe_text[:200]!r}"
+            )
 
         if self.auto_play:
             self._play_audio(target)
