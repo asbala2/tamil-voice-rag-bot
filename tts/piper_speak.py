@@ -4,12 +4,13 @@ from pathlib import Path
 import string
 import subprocess
 import sys
+import wave
 
 import yaml
 
 
 class PiperSpeaker:
-    """Tamil speech synthesis using Piper CLI and local ONNX voice files."""
+    """Tamil speech synthesis using Piper's Python API and local ONNX voice files."""
 
     _ALLOWED_PUNCTUATION = set(string.punctuation) | {"…", "“", "”", "‘", "’", "-", "–", "—"}
 
@@ -20,6 +21,7 @@ class PiperSpeaker:
 
         tts_cfg = self.config["tts"]
         self.enabled = bool(tts_cfg["enabled"])
+        # Kept for backward compatibility with existing config structure.
         self.piper_binary = tts_cfg.get("piper_binary", "piper")
         self.model_path = Path(tts_cfg["model_path"])
         self.config_path = Path(tts_cfg["config_path"])
@@ -57,7 +59,7 @@ class PiperSpeaker:
             )
 
     def _sanitize_text(self, text: str) -> str:
-        """Keep Tamil/script-safe characters and remove invalid Unicode before Piper stdin."""
+        """Keep Tamil/script-safe characters and remove invalid Unicode before synthesis."""
 
         def is_tamil_char(ch: str) -> bool:
             codepoint = ord(ch)
@@ -67,7 +69,7 @@ class PiperSpeaker:
         for char in text:
             codepoint = ord(char)
 
-            # Strip surrogate code points that break UTF-8 encoding in subprocess stdin.
+            # Strip surrogate code points that break UTF-8 encoding paths on some platforms.
             if 0xD800 <= codepoint <= 0xDFFF:
                 continue
 
@@ -78,7 +80,7 @@ class PiperSpeaker:
         return normalized or "பதில் கிடைக்கவில்லை."
 
     def synthesize(self, text: str, output_path: str | None = None) -> str:
-        """Generate Tamil speech via Piper and return wav output path."""
+        """Generate Tamil speech via Piper Python API and return wav output path."""
         if not self.enabled:
             raise RuntimeError("TTS is disabled in config.yaml. Set tts.enabled: true to use Piper.")
 
@@ -86,47 +88,34 @@ class PiperSpeaker:
         target = Path(output_path) if output_path else self.output_file
         target.parent.mkdir(parents=True, exist_ok=True)
 
-        command = [
-            self.piper_binary,
-            "--model",
-            str(self.model_path),
-            "--config",
-            str(self.config_path),
-            "--output_file",
-            str(target),
-        ]
-
         safe_text = self._sanitize_text(text)
+
         try:
-            stdin_bytes = safe_text.encode("utf-8")
-        except UnicodeEncodeError as exc:
+            from piper.voice import PiperVoice
+        except ImportError as exc:
             raise RuntimeError(
-                "Piper input encoding failed after sanitization. "
-                f"Text preview: {safe_text[:120]!r}"
+                "Piper Python package is not installed. Install dependencies with `pip install -r requirements.txt` "
+                "and ensure `piper-tts` is available in this environment."
             ) from exc
 
         try:
-            subprocess.run(
-                command,
-                input=stdin_bytes,
-                text=False,
-                check=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
-            )
-        except FileNotFoundError as exc:
+            voice = PiperVoice.load(str(self.model_path), config_path=str(self.config_path), use_cuda=False)
+        except Exception as exc:  # noqa: BLE001
             raise RuntimeError(
-                "Piper executable not found. Install Piper and ensure `piper` is on PATH, "
-                "or set tts.piper_binary in config.yaml."
+                "Failed to load Piper voice model with Python API. "
+                f"model_path={self.model_path!s}, config_path={self.config_path!s}. "
+                "Ensure the ONNX and JSON files match and are readable."
             ) from exc
-        except subprocess.CalledProcessError as exc:
-            stderr = (exc.stderr or b"").decode("utf-8", errors="replace").strip()
+
+        try:
+            with wave.open(str(target), "wb") as wav_file:
+                voice.synthesize(safe_text, wav_file)
+        except Exception as exc:  # noqa: BLE001
             raise RuntimeError(
-                "Piper synthesis failed. "
-                f"Exit code: {exc.returncode}. "
-                f"Command: {' '.join(command)}\n"
+                "Piper synthesis failed via Python API. "
+                f"Output path: {target!s}. "
                 f"Sanitized text preview: {safe_text[:200]!r}\n"
-                f"Piper stderr:\n{stderr or '(empty)'}"
+                f"Original error: {exc}"
             ) from exc
 
         if self.auto_play:

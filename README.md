@@ -11,7 +11,7 @@ Audio / Mic -> Whisper -> Question Text -> RAG over Tamil documents -> Ollama an
 - `rag/retriever.py` - retrieve top-k context chunks for a question
 - `llm/ollama_client.py` - send prompt + retrieved context to Ollama
 - `scripts/run_demo.py` - simple CLI entry point with optional speech reply (`--speak`)
-- `tts/piper_speak.py` - Piper-based Tamil speech synthesis
+- `tts/piper_speak.py` - Piper Python API-based Tamil speech synthesis
 
 ## Suggested first MVP
 
@@ -154,16 +154,13 @@ Then place both files under `data/models/piper/` (or any path you prefer) and up
 ```yaml
 tts:
   enabled: true
-  piper_binary: piper
   model_path: data/models/piper/ta_IN-kani-medium.onnx
   config_path: data/models/piper/ta_IN-kani-medium.onnx.json
   output_file: data/output/output_answer.wav
   auto_play: true
 ```
 
-Windows note: if `piper` is not on PATH, set `tts.piper_binary` to the full path of `piper.exe`.
-
-Troubleshooting (Windows Unicode): if Piper reports `surrogates not allowed`, the app now sanitizes reply text before synthesis (removes invalid surrogate code points and unsupported symbols) and sends UTF-8 bytes directly to Piper stdin.
+Troubleshooting (Windows Unicode): to avoid stdin/console encoding issues like `surrogates not allowed`, synthesis now uses Piper's Python API directly (no subprocess CLI), while still sanitizing reply text before synthesis.
 
 ## Notes
 
