@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import array
+import json
 from pathlib import Path
 import string
 import subprocess
@@ -79,6 +81,62 @@ class PiperSpeaker:
         normalized = " ".join("".join(sanitized_chars).split())
         return normalized or "பதில் கிடைக்கவில்லை."
 
+    def _resolve_wav_params(self, voice: object) -> tuple[int, int, int]:
+        """Resolve WAV metadata from Piper voice/model configuration."""
+
+        def _attr_path(obj: object, path: str) -> object | None:
+            current: object | None = obj
+            for part in path.split("."):
+                if current is None:
+                    return None
+                current = getattr(current, part, None)
+            return current
+
+        sample_rate = None
+        for attr_name in (
+            "config.sample_rate",
+            "config.audio.sample_rate",
+            "sample_rate",
+            "audio_sample_rate",
+        ):
+            value = _attr_path(voice, attr_name)
+            if isinstance(value, int) and value > 0:
+                sample_rate = value
+                break
+
+        channels = 1
+        sample_width = 2
+
+        try:
+            with open(self.config_path, "r", encoding="utf-8") as cfg_file:
+                model_cfg = json.load(cfg_file)
+
+            audio_cfg = model_cfg.get("audio", {}) if isinstance(model_cfg, dict) else {}
+            if sample_rate is None:
+                for value in (audio_cfg.get("sample_rate"), model_cfg.get("sample_rate")):
+                    if isinstance(value, int) and value > 0:
+                        sample_rate = value
+                        break
+
+            ch = audio_cfg.get("channels", audio_cfg.get("num_channels"))
+            if isinstance(ch, int) and ch > 0:
+                channels = ch
+
+            bits = audio_cfg.get("bits_per_sample", audio_cfg.get("bit_depth"))
+            if isinstance(bits, int) and bits in (8, 16, 24, 32):
+                sample_width = bits // 8
+        except Exception:  # noqa: BLE001
+            # Keep sensible defaults if JSON metadata cannot be parsed.
+            pass
+
+        if sample_rate is None:
+            raise RuntimeError(
+                "Unable to determine Piper sample rate from voice/model metadata. "
+                f"Check config file: {self.config_path!s}."
+            )
+
+        return channels, sample_width, sample_rate
+
     def synthesize(self, text: str, output_path: str | None = None) -> str:
         """Generate Tamil speech via Piper Python API and return wav output path."""
         if not self.enabled:
@@ -107,13 +165,52 @@ class PiperSpeaker:
                 "Ensure the ONNX and JSON files match and are readable."
             ) from exc
 
+        channels, sample_width, sample_rate = self._resolve_wav_params(voice)
+
+        chunk_count = 0
         try:
             with wave.open(str(target), "wb") as wav_file:
-                voice.synthesize(safe_text, wav_file)
+                wav_file.setnchannels(channels)
+                wav_file.setsampwidth(sample_width)
+                wav_file.setframerate(sample_rate)
+
+                if hasattr(voice, "synthesize_stream_raw"):
+                    for raw_chunk in voice.synthesize_stream_raw(safe_text):
+                        if raw_chunk is None:
+                            continue
+
+                        if isinstance(raw_chunk, (bytes, bytearray, memoryview)):
+                            chunk_bytes = bytes(raw_chunk)
+                        elif hasattr(raw_chunk, "tobytes"):
+                            chunk_bytes = raw_chunk.tobytes()
+                        else:
+                            try:
+                                chunk_bytes = bytes(raw_chunk)
+                            except Exception:  # noqa: BLE001
+                                chunk_bytes = array.array("h", raw_chunk).tobytes()
+
+                        if not chunk_bytes:
+                            continue
+
+                        wav_file.writeframesraw(chunk_bytes)
+                        chunk_count += 1
+                else:
+                    voice.synthesize(safe_text, wav_file)
+                    chunk_count = 1
+
+                if chunk_count == 0:
+                    raise RuntimeError(
+                        "Piper returned zero audio chunks; no WAV audio frames were generated."
+                    )
         except Exception as exc:  # noqa: BLE001
+            if target.exists():
+                target.unlink(missing_ok=True)
+
+            zero_chunks = "yes" if chunk_count == 0 else "no"
             raise RuntimeError(
                 "Piper synthesis failed via Python API. "
                 f"Output path: {target!s}. "
+                f"Zero chunks returned: {zero_chunks}. "
                 f"Sanitized text preview: {safe_text[:200]!r}\n"
                 f"Original error: {exc}"
             ) from exc
