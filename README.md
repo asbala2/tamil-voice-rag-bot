@@ -43,7 +43,8 @@ Audio / Mic -> Whisper -> Question Text -> RAG over Tamil documents -> Ollama an
 ├── pipeline/
 │   └── voice_pipeline.py
 ├── scripts/
-│   └── run_demo.py
+│   ├── run_demo.py
+│   └── test_piper.py
 └── tests/
 ```
 
@@ -135,7 +136,18 @@ python rag/ingest.py --config config.yaml
 python scripts/run_demo.py --question "திருக்குறளில் தலைமை பற்றி என்ன சொல்லப்பட்டுள்ளது?"
 python scripts/run_demo.py --config config.yaml --question "திருக்குறளில் தலைமை பற்றி என்ன சொல்லப்படுகிறது?" --speak
 python scripts/run_demo.py --config config.yaml --audio path/to/question.wav --speak
+python scripts/test_piper.py
 ```
+
+## Piper diagnostic script
+
+Use this standalone check to validate Piper model loading and Tamil synthesis runtime:
+
+```bash
+python scripts/test_piper.py
+```
+
+It synthesizes `"வணக்கம்"`, prints model/runtime diagnostics, and saves audio to `data/output/piper_test.wav`.
 
 
 ## Piper Tamil voice setup
