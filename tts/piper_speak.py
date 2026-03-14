@@ -166,12 +166,20 @@ class PiperSpeaker:
 
         channels, sample_width, sample_rate = self._resolve_wav_params(voice)
 
+        chunk_count = 0
+        audio_bytes = 0
+
         try:
             with wave.open(str(target), "w") as wav_file:
                 wav_file.setnchannels(channels)
                 wav_file.setsampwidth(sample_width)
                 wav_file.setframerate(sample_rate)
-                voice.synthesize(safe_text, wav_file)
+
+                for chunk in voice.synthesize(safe_text):
+                    payload = chunk.audio_int16_bytes
+                    wav_file.writeframes(payload)
+                    chunk_count += 1
+                    audio_bytes += len(payload)
         except Exception as exc:  # noqa: BLE001
             if target.exists():
                 target.unlink(missing_ok=True)
@@ -179,9 +187,22 @@ class PiperSpeaker:
             raise RuntimeError(
                 "Piper synthesis failed via Python API. "
                 f"Output path: {target!s}. "
-                f"Sanitized text preview: {safe_text[:200]!r}\n"
+                f"Sanitized text preview: {safe_text[:200]!r}. "
+                f"Chunks written: {chunk_count}, bytes written: {audio_bytes}.\n"
                 f"Original error: {exc}"
             ) from exc
+
+        if chunk_count == 0 or audio_bytes == 0:
+            if target.exists():
+                target.unlink(missing_ok=True)
+            raise RuntimeError(
+                "Piper synthesis produced zero audio output. "
+                f"model_path={self.model_path!s}, "
+                f"config_path={self.config_path!s}, "
+                f"sample_rate={sample_rate}, "
+                f"sanitized_text={safe_text[:200]!r}, "
+                f"chunks={chunk_count}, bytes={audio_bytes}"
+            )
 
         try:
             with wave.open(str(target), "r") as wav_file:

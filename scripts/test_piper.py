@@ -8,29 +8,36 @@ import wave
 import yaml
 
 
-PHRASE = "வணக்கம்"
+DEFAULT_TAMIL_TEXT = "வணக்கம்"
+DEFAULT_ENGLISH_TEXT = "Hello world"
 DEFAULT_CONFIG = "config.yaml"
 OUTPUT_WAV = Path("data/output/piper_test.wav")
 
 
 def _sanitize_text(text: str) -> str:
-    """Keep Tamil/script-safe characters and remove invalid Unicode before synthesis."""
+    """Keep Unicode-safe letters and punctuation; strip invalid surrogate code points."""
     allowed_punctuation = set(string.punctuation) | {"…", "“", "”", "‘", "’", "-", "–", "—"}
-
-    def is_tamil_char(ch: str) -> bool:
-        codepoint = ord(ch)
-        return 0x0B80 <= codepoint <= 0x0BFF
 
     sanitized_chars: list[str] = []
     for char in text:
         codepoint = ord(char)
         if 0xD800 <= codepoint <= 0xDFFF:
             continue
-        if is_tamil_char(char) or char.isdigit() or char.isspace() or char in allowed_punctuation:
+        if char.isalpha() or char.isdigit() or char.isspace() or char in allowed_punctuation:
             sanitized_chars.append(char)
 
     normalized = " ".join("".join(sanitized_chars).split())
-    return normalized or "பதில் கிடைக்கவில்லை."
+    return normalized or DEFAULT_TAMIL_TEXT
+
+
+def _default_text_for_model(model_path: Path) -> str:
+    """Pick a sensible default test phrase based on model name."""
+    model_name = model_path.stem.lower()
+    if model_name.startswith("en_"):
+        return DEFAULT_ENGLISH_TEXT
+    if model_name.startswith("ta_"):
+        return DEFAULT_TAMIL_TEXT
+    return DEFAULT_ENGLISH_TEXT
 
 
 class TrackingWaveWriter:
@@ -72,8 +79,12 @@ class TrackingWaveWriter:
         self._wav_file.writeframesraw(data)
 
 
-def main(config_file: str = DEFAULT_CONFIG, model_override: str | None = None) -> None:
-    """Load Piper model directly, synthesize a Tamil sample, and print diagnostics."""
+def main(
+    config_file: str = DEFAULT_CONFIG,
+    model_override: str | None = None,
+    text_override: str | None = None,
+) -> None:
+    """Run a minimal Piper synthesis diagnostic with precise failure reporting."""
     with open(config_file, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
@@ -101,11 +112,14 @@ def main(config_file: str = DEFAULT_CONFIG, model_override: str | None = None) -
     print(f"Config sample rate: {sample_rate}")
     print(f"Speaker info: num_speakers={num_speakers}, speaker_id_map={speaker_id_map}")
 
-    safe_text = _sanitize_text(PHRASE)
+    raw_text = text_override if text_override is not None else _default_text_for_model(model_path)
+    safe_text = _sanitize_text(raw_text)
+    print(f"Test text: {safe_text!r}")
     output_wav.parent.mkdir(parents=True, exist_ok=True)
 
     synthesize_entered = False
     synthesize_error: Exception | None = None
+    wav_setup_error: Exception | None = None
     close_error: Exception | None = None
     writer_state: TrackingWaveWriter | None = None
 
@@ -113,9 +127,18 @@ def main(config_file: str = DEFAULT_CONFIG, model_override: str | None = None) -
     writer_state = TrackingWaveWriter(wav_file)
     try:
         synthesize_entered = True
-        voice.synthesize(safe_text, writer_state)
+        for chunk in voice.synthesize(safe_text):
+            if not writer_state.params_initialized:
+                writer_state.setnchannels(chunk.sample_channels)
+                writer_state.setsampwidth(chunk.sample_width)
+                writer_state.setframerate(chunk.sample_rate)
+
+            audio_bytes = chunk.audio_int16_bytes
+            writer_state.writeframes(audio_bytes)
     except Exception as exc:  # noqa: BLE001
         synthesize_error = exc
+        if not writer_state.params_initialized:
+            wav_setup_error = exc
     finally:
         try:
             wav_file.close()
@@ -128,15 +151,30 @@ def main(config_file: str = DEFAULT_CONFIG, model_override: str | None = None) -
         print(f"Audio chunks/frames written: {writer_state.write_calls}")
         print(f"Audio bytes written: {writer_state.written_bytes}")
 
+    if synthesize_error is None and writer_state is not None and writer_state.written_bytes == 0:
+        if output_wav.exists():
+            output_wav.unlink(missing_ok=True)
+        raise RuntimeError(
+            "Piper synthesis produced zero audio bytes. "
+            f"model_path={model_path!s}, "
+            f"config_path={config_path!s}, "
+            f"test_text={safe_text!r}, "
+            f"sample_rate={sample_rate}, "
+            "zero_chunks=True, zero_bytes=True"
+        )
+
     if synthesize_error is not None:
         if output_wav.exists():
             output_wav.unlink(missing_ok=True)
         close_note = f" Close error: {close_error}" if close_error is not None else ""
         raise RuntimeError(
             "Piper synthesis failed before producing a valid WAV stream in diagnostic test. "
-            f"Output path: {output_wav!s}. "
-            f"Sanitized text: {safe_text!r}. "
+            f"model_path={model_path!s}, config_path={config_path!s}, output_path={output_wav!s}. "
+            f"Test text: {safe_text!r}. sample_rate={sample_rate}. "
+            f"WAV params initialized={writer_state.params_initialized if writer_state else False}. "
+            f"chunks={writer_state.write_calls if writer_state else 0}, bytes={writer_state.written_bytes if writer_state else 0}. "
             f"Original synthesis error: {synthesize_error}."
+            f" WAV setup error: {wav_setup_error}."
             f"{close_note}"
         ) from synthesize_error
 
@@ -186,5 +224,10 @@ if __name__ == "__main__":
         default=None,
         help="Override Piper model path without editing config.yaml",
     )
+    parser.add_argument(
+        "--text",
+        default=None,
+        help="Override test text for synthesis diagnostics",
+    )
     args = parser.parse_args()
-    main(config_file=args.config, model_override=args.model_path)
+    main(config_file=args.config, model_override=args.model_path, text_override=args.text)
