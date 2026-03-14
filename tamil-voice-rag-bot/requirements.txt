@@ -5,6 +5,4 @@ PyYAML>=6.0.2
 requests>=2.32.3
 numpy>=1.26.4
 soundfile>=0.12.1
-TTS>=0.22.0
-pypdf>=4.3.1
-python-docx>=1.1.2
+piper-tts>=1.2.0

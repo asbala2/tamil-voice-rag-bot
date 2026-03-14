@@ -9,7 +9,7 @@ import yaml
 from llm.ollama_client import OllamaTamilQA
 from rag.retriever import TamilRetriever
 from speech.whisper_transcribe import TamilWhisperTranscriber
-from tts.xtts_speak import XTTSSpeaker
+from tts.piper_speak import PiperSpeaker
 
 
 @dataclass
@@ -28,7 +28,7 @@ class TamilVoiceRAGPipeline:
         self.config_path = config_path
         self.retriever = TamilRetriever(config_path)
         self.qa = OllamaTamilQA(config_path)
-        self.tts = XTTSSpeaker(config_path)
+        self.tts = PiperSpeaker(config_path)
         self.transcriber = TamilWhisperTranscriber(config_path)
 
     def run_with_text(self, question_text: str, make_voice_reply: bool = False) -> PipelineResult:

@@ -40,6 +40,7 @@ Audio / Mic -> Whisper -> Question Text -> RAG over Tamil documents -> Ollama an
 ├── llm/
 │   └── ollama_client.py
 ├── tts/
+│   ├── piper_speak.py
 │   └── xtts_speak.py
 ├── pipeline/
 │   └── voice_pipeline.py
@@ -102,6 +103,32 @@ python scripts/run_demo.py --audio path/to/question.wav
 ```bash
 python scripts/run_demo.py --question "திருக்குறளில் தலைமை பற்றி என்ன சொல்லப்பட்டுள்ளது?"
 ```
+
+
+## Piper Tamil voice setup
+
+By default, speech output expects these files:
+
+- `data/models/piper/ta_IN-kani-medium.onnx`
+- `data/models/piper/ta_IN-kani-medium.onnx.json`
+
+If they are not present, download a Tamil Piper voice model and its matching `.json` config from the Piper voices release page:
+
+- https://github.com/rhasspy/piper/blob/master/VOICES.md
+
+Then place both files under `data/models/piper/` (or any path you prefer) and update `config.yaml`:
+
+```yaml
+tts:
+  enabled: true
+  piper_binary: piper
+  model_path: data/models/piper/ta_IN-kani-medium.onnx
+  config_path: data/models/piper/ta_IN-kani-medium.onnx.json
+  output_file: data/output/output_answer.wav
+  auto_play: true
+```
+
+Windows note: if `piper` is not on PATH, set `tts.piper_binary` to the full path of `piper.exe`.
 
 ## Notes
 
