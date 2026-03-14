@@ -7,7 +7,7 @@ Audio / Mic -> Whisper -> Question Text -> RAG over Tamil documents -> Ollama an
 ## What this starter repo includes
 
 - `speech/whisper_transcribe.py` - transcribe Tamil audio with Faster-Whisper
-- `rag/ingest.py` - chunk Tamil text documents and build a Chroma vector store
+- `rag/ingest.py` - ingest Tamil `.txt`, `.pdf`, and `.docx` documents, chunk them, and build a Chroma vector store
 - `rag/retriever.py` - retrieve top-k context chunks for a question
 - `llm/ollama_client.py` - send prompt + retrieved context to Ollama
 - `tts/xtts_speak.py` - generate speech from answer text using Coqui XTTS
@@ -16,7 +16,7 @@ Audio / Mic -> Whisper -> Question Text -> RAG over Tamil documents -> Ollama an
 
 ## Suggested first MVP
 
-1. Put a few Tamil `.txt` files into `data/literature/`
+1. Put a few Tamil `.txt`, `.pdf`, or `.docx` files into `data/literature/`
 2. Build the vector DB
 3. Run the pipeline with an audio file
 4. Get a Tamil text answer
@@ -75,9 +75,9 @@ ollama serve
 ollama pull gemma3:4b
 ```
 
-### 4) Add Tamil source text
+### 4) Add Tamil source documents
 
-Place one or more UTF-8 Tamil `.txt` files in:
+Place one or more Tamil source files in supported formats (`.txt`, `.pdf`, `.docx`) in:
 
 ```text
 data/literature/
@@ -108,7 +108,8 @@ python scripts/run_demo.py --question "திருக்குறளில் �
 - Start with text output first.
 - Add XTTS once retrieval + answer quality is acceptable.
 - On a CPU-only PC, keep models small initially.
-- Use clean Tamil text files and clear audio for best results.
+- Use clean Tamil source documents and clear audio for best results.
+- `rag/ingest.py` scans `data/literature/` recursively and safely skips unsupported, unreadable, or empty files.
 
 ## Next recommended improvements
 
