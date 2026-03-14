@@ -147,7 +147,13 @@ Use this standalone check to validate Piper model loading and Tamil synthesis ru
 python scripts/test_piper.py
 ```
 
-It synthesizes `"வணக்கம்"`, prints model/runtime diagnostics, and saves audio to `data/output/piper_test.wav`.
+Optional: override the voice model path from CLI (useful for quickly testing another Piper model, e.g. English) without editing `config.yaml`:
+
+```bash
+python scripts/test_piper.py --model-path data/models/piper/en_US-lessac-medium.onnx
+```
+
+It synthesizes `"வணக்கம்"`, prints model/runtime diagnostics (sample rate, speaker info, synthesize entry, WAV header/chunk activity), and saves audio to `data/output/piper_test.wav`.
 
 
 ## Piper Tamil voice setup
@@ -173,6 +179,8 @@ tts:
 ```
 
 Troubleshooting (Windows Unicode): to avoid stdin/console encoding issues like `surrogates not allowed`, synthesis now uses Piper's Python API directly (no subprocess CLI), while still sanitizing reply text before synthesis.
+
+Troubleshooting (Piper runtime/WAV errors): if `wave.Error: # channels not specified` appears, run `python scripts/test_piper.py` to capture the underlying synthesis exception before WAV close masks it. The diagnostic now explicitly reports whether `synthesize()` was entered, whether WAV header parameters were initialized, and whether audio frames were produced; if not, it raises a clear "model/runtime combination produced no audio" error.
 
 ## Notes
 
