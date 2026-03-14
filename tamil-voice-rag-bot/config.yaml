@@ -33,7 +33,9 @@ llm:
 
 tts:
   enabled: false
-  model_name: tts_models/multilingual/multi-dataset/xtts_v2
-  speaker_wav: null
-  language: ta
-  output_file: data/output/reply.wav
+  engine: piper
+  piper_binary: piper
+  model_path: data/models/piper/ta_IN-kani-medium.onnx
+  config_path: data/models/piper/ta_IN-kani-medium.onnx.json
+  output_file: data/output/output_answer.wav
+  auto_play: true

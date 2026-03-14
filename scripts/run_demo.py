@@ -20,7 +20,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--speak",
         action="store_true",
-        help="Synthesize the final Tamil answer into speech using Coqui TTS",
+        help="Synthesize the final Tamil answer into speech using Piper TTS",
     )
     return parser.parse_args()
 
@@ -30,9 +30,9 @@ def maybe_speak_answer(config_path: str, answer: str, speak: bool) -> str | None
     if not speak:
         return None
 
-    from tts.xtts_speak import XTTSSpeaker
+    from tts.piper_speak import PiperSpeaker
 
-    speaker = XTTSSpeaker(config_path=config_path)
+    speaker = PiperSpeaker(config_path=config_path)
     audio_path = speaker.synthesize(answer)
     print("\n=== Audio Reply Saved ===")
     print(audio_path)

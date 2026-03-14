@@ -2,7 +2,7 @@
 
 A local-first voice assistant pipeline for Tamil question answering:
 
-Audio / Mic -> Whisper -> Question Text -> RAG over Tamil documents -> Ollama answer -> Optional Coqui TTS Tamil voice reply
+Audio / Mic -> Whisper -> Question Text -> RAG over Tamil documents -> Ollama answer -> Optional Piper TTS Tamil voice reply
 
 ## What this starter repo includes
 
@@ -11,6 +11,7 @@ Audio / Mic -> Whisper -> Question Text -> RAG over Tamil documents -> Ollama an
 - `rag/retriever.py` - retrieve top-k context chunks for a question
 - `llm/ollama_client.py` - send prompt + retrieved context to Ollama
 - `scripts/run_demo.py` - simple CLI entry point with optional speech reply (`--speak`)
+- `tts/piper_speak.py` - Piper-based Tamil speech synthesis
 
 ## Suggested first MVP
 
@@ -37,6 +38,7 @@ Audio / Mic -> Whisper -> Question Text -> RAG over Tamil documents -> Ollama an
 ├── llm/
 │   └── ollama_client.py
 ├── tts/
+│   ├── piper_speak.py
 │   └── xtts_speak.py
 ├── pipeline/
 │   └── voice_pipeline.py
@@ -135,11 +137,37 @@ python scripts/run_demo.py --config config.yaml --question "திருக்�
 python scripts/run_demo.py --config config.yaml --audio path/to/question.wav --speak
 ```
 
+
+## Piper Tamil voice setup
+
+By default, speech output expects these files:
+
+- `data/models/piper/ta_IN-kani-medium.onnx`
+- `data/models/piper/ta_IN-kani-medium.onnx.json`
+
+If they are not present, download a Tamil Piper voice model and its matching `.json` config from the Piper voices release page:
+
+- https://github.com/rhasspy/piper/blob/master/VOICES.md
+
+Then place both files under `data/models/piper/` (or any path you prefer) and update `config.yaml`:
+
+```yaml
+tts:
+  enabled: true
+  piper_binary: piper
+  model_path: data/models/piper/ta_IN-kani-medium.onnx
+  config_path: data/models/piper/ta_IN-kani-medium.onnx.json
+  output_file: data/output/output_answer.wav
+  auto_play: true
+```
+
+Windows note: if `piper` is not on PATH, set `tts.piper_binary` to the full path of `piper.exe`.
+
 ## Notes
 
 - Text output remains the default behavior; speech reply is optional via `--speak`.
-- Coqui TTS first tries XTTS and can fall back to a lighter Tamil model in `config.yaml`.
-- On a CPU-only PC, keep models small initially and prefer fallback when needed.
+- Piper TTS is used when `--speak` is passed and `tts.enabled: true`.
+- On a CPU-only PC, choose a `medium` or `low` Piper voice for faster synthesis.
 - Use clean Tamil text files and clear audio for best results.
 
 ## Next recommended improvements
