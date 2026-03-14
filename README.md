@@ -163,6 +163,8 @@ tts:
 
 Windows note: if `piper` is not on PATH, set `tts.piper_binary` to the full path of `piper.exe`.
 
+Troubleshooting (Windows Unicode): if Piper reports `surrogates not allowed`, the app now sanitizes reply text before synthesis (removes invalid surrogate code points and unsupported symbols) and sends UTF-8 bytes directly to Piper stdin.
+
 ## Notes
 
 - Text output remains the default behavior; speech reply is optional via `--speak`.
