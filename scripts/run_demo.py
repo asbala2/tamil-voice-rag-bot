@@ -9,6 +9,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments for the Tamil RAG demo."""
     parser = argparse.ArgumentParser(description="Run Tamil RAG retrieval + answering demo")
@@ -16,11 +17,35 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--question", help="Tamil text question")
     parser.add_argument("--audio", help="Path to Tamil audio file")
     parser.add_argument("--top-k", type=int, default=None, help="Override top-k retrieval count")
+    parser.add_argument(
+        "--speak",
+        action="store_true",
+        help="Synthesize the final Tamil answer into speech using Coqui TTS",
+    )
     return parser.parse_args()
 
 
-def run_text_qa(config_path: str, question: str, top_k: int | None = None) -> None:
-    """Retrieve context from Chroma and print a Tamil answer from Ollama."""
+def maybe_speak_answer(config_path: str, answer: str, speak: bool) -> str | None:
+    """Optionally synthesize Tamil answer audio and return the written path."""
+    if not speak:
+        return None
+
+    from tts.xtts_speak import XTTSSpeaker
+
+    speaker = XTTSSpeaker(config_path=config_path)
+    audio_path = speaker.synthesize(answer)
+    print("\n=== Audio Reply Saved ===")
+    print(audio_path)
+    return audio_path
+
+
+def run_text_qa(
+    config_path: str,
+    question: str,
+    top_k: int | None = None,
+    speak: bool = False,
+) -> None:
+    """Retrieve context from Chroma, print Tamil answer, and optionally generate voice output."""
     from llm.ollama_client import OllamaTamilQA
     from rag.retriever import TamilRetriever
 
@@ -37,8 +62,15 @@ def run_text_qa(config_path: str, question: str, top_k: int | None = None) -> No
     print("\n=== Answer ===")
     print(answer)
 
+    maybe_speak_answer(config_path=config_path, answer=answer, speak=speak)
 
-def run_audio_qa(config_path: str, audio_path: str, top_k: int | None = None) -> None:
+
+def run_audio_qa(
+    config_path: str,
+    audio_path: str,
+    top_k: int | None = None,
+    speak: bool = False,
+) -> None:
     """Transcribe audio and run retrieval + Tamil answering from the transcript."""
     from speech.whisper_transcribe import TamilWhisperTranscriber
 
@@ -49,7 +81,7 @@ def run_audio_qa(config_path: str, audio_path: str, top_k: int | None = None) ->
     if not question_text:
         raise SystemExit("Unable to transcribe a Tamil question from the given audio file")
 
-    run_text_qa(config_path=config_path, question=question_text, top_k=top_k)
+    run_text_qa(config_path=config_path, question=question_text, top_k=top_k, speak=speak)
 
 
 def main() -> None:
@@ -60,10 +92,10 @@ def main() -> None:
         raise SystemExit("Provide either --question or --audio")
 
     if args.question:
-        run_text_qa(config_path=args.config, question=args.question, top_k=args.top_k)
+        run_text_qa(config_path=args.config, question=args.question, top_k=args.top_k, speak=args.speak)
         return
 
-    run_audio_qa(config_path=args.config, audio_path=args.audio, top_k=args.top_k)
+    run_audio_qa(config_path=args.config, audio_path=args.audio, top_k=args.top_k, speak=args.speak)
 
 
 if __name__ == "__main__":
