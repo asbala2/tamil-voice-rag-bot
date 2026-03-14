@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import subprocess
 import sys
 
@@ -53,6 +54,18 @@ class PiperSpeaker:
                 f"{joined}. Download a Tamil Piper model and set tts.model_path/tts.config_path."
             )
 
+    def _sanitize_text(self, text: str) -> str:
+        """Keep Tamil and basic punctuation, removing unsafe Unicode for Piper CLI."""
+        # Remove invalid surrogate code points that can break subprocess stdin handling.
+        no_surrogates = "".join(ch for ch in text if not (0xD800 <= ord(ch) <= 0xDFFF))
+
+        # Keep Tamil code block, whitespace, digits, and simple punctuation used in answers.
+        cleaned = re.sub(r"[^\u0B80-\u0BFF\s0-9.,!?;:'\"()\-]", "", no_surrogates)
+
+        # Normalize whitespace and keep fallback text so Piper always receives valid input.
+        normalized = re.sub(r"\s+", " ", cleaned).strip()
+        return normalized or "பதில் கிடைக்கவில்லை."
+
     def synthesize(self, text: str, output_path: str | None = None) -> str:
         """Generate Tamil speech via Piper and return wav output path."""
         if not self.enabled:
@@ -72,15 +85,16 @@ class PiperSpeaker:
             str(target),
         ]
 
+        safe_text = self._sanitize_text(text)
+
         try:
             subprocess.run(
                 command,
-                input=text,
-                text=True,
+                input=safe_text.encode("utf-8"),
+                text=False,
                 check=True,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE,
-                encoding="utf-8",
             )
         except FileNotFoundError as exc:
             raise RuntimeError(
@@ -88,8 +102,9 @@ class PiperSpeaker:
                 "or set tts.piper_binary in config.yaml."
             ) from exc
         except subprocess.CalledProcessError as exc:
-            stderr = (exc.stderr or "").strip()
-            raise RuntimeError(f"Piper synthesis failed: {stderr}") from exc
+            stderr_bytes = exc.stderr or b""
+            stderr = stderr_bytes.decode("utf-8", errors="replace").strip()
+            raise RuntimeError(f"Piper synthesis failed. Piper stderr:\n{stderr}") from exc
 
         if self.auto_play:
             self._play_audio(target)
