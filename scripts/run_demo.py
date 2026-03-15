@@ -33,7 +33,19 @@ def maybe_speak_answer(config_path: str, answer: str, speak: bool) -> str | None
     from tts.piper_speak import PiperSpeaker
 
     speaker = PiperSpeaker(config_path=config_path)
-    audio_path = speaker.synthesize(answer)
+
+    if not speaker.enabled:
+        print("\n=== Audio Reply Skipped ===")
+        print("TTS is disabled in config.yaml (tts.enabled: false).")
+        return None
+
+    try:
+        audio_path = speaker.synthesize(answer)
+    except RuntimeError as exc:
+        print("\n=== Audio Reply Failed ===")
+        print(str(exc))
+        return None
+
     print("\n=== Audio Reply Saved ===")
     print(audio_path)
     return audio_path
