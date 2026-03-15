@@ -6,3 +6,4 @@ requests>=2.32.3
 numpy>=1.26.4
 soundfile>=0.12.1
 piper-tts>=1.2.0
+sounddevice>=0.4.7

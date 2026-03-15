@@ -129,6 +129,22 @@ Optional: override retrieval depth.
 python scripts/run_demo.py --question "திருக்குறளில் தலைமை பற்றி என்ன சொல்லப்பட்டுள்ளது?" --top-k 5
 ```
 
+### 8) Run live microphone voice assistant
+
+This loop records from your default microphone at **16 kHz**, transcribes with Faster-Whisper, prints the recognized Tamil text, and then runs the same RAG + Ollama pipeline used by text QA.
+
+```bash
+python scripts/run_voice_assistant.py --config config.yaml
+```
+
+Optional flags:
+
+```bash
+python scripts/run_voice_assistant.py --duration 8 --top-k 5 --speak
+```
+
+Press `Ctrl+C` at any time to stop the assistant loop.
+
 ## CLI commands
 
 ```bash
@@ -137,6 +153,7 @@ python scripts/run_demo.py --question "திருக்குறளில் �
 python scripts/run_demo.py --config config.yaml --question "திருக்குறளில் தலைமை பற்றி என்ன சொல்லப்படுகிறது?" --speak
 python scripts/run_demo.py --config config.yaml --audio path/to/question.wav --speak
 python scripts/test_piper.py
+python scripts/run_voice_assistant.py --config config.yaml
 ```
 
 ## Piper diagnostic script
