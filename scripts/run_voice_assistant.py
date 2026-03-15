@@ -32,7 +32,12 @@ def parse_args() -> argparse.Namespace:
         help="Recording duration per turn in seconds (default: 6.0)",
     )
     parser.add_argument("--top-k", type=int, default=None, help="Override retrieval top-k")
-    parser.add_argument("--speak", action="store_true", help="Synthesize answer audio with Piper")
+    parser.add_argument(
+        "--speak",
+        action="store_true",
+        default=True,
+        help="Synthesize answer audio with Piper (enabled by default to match run_demo.py)",
+    )
     parser.add_argument(
         "--sample-rate",
         type=int,
