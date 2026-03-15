@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import yaml
 from faster_whisper import WhisperModel
@@ -17,23 +17,29 @@ class TamilWhisperTranscriber:
         with open(config_path, "r", encoding="utf-8") as f:
             self.config = yaml.safe_load(f)
 
-        self.model_name = self.config["speech"]["whisper_model"]
-        self.language = self.config["speech"]["language"]
-        self.beam_size = int(self.config["speech"]["beam_size"])
-        self.vad_filter = bool(self.config["speech"]["vad_filter"])
+        speech_config = self.config["speech"]
+        self.model_name = speech_config.get("whisper_model_size") or speech_config["whisper_model"]
+        self.language = speech_config.get("language", "ta")
+        self.beam_size = int(speech_config.get("beam_size", 8))
+        self.best_of = int(speech_config.get("best_of", 5))
+        self.temperature = float(speech_config.get("temperature", 0.0))
+        self.vad_filter = bool(speech_config.get("vad_filter", True))
 
         self.model = WhisperModel(self.model_name, device="cpu", compute_type="int8")
 
-    def transcribe_file(self, audio_path: str) -> Dict[str, Any]:
+    def transcribe_file(self, audio_path: str, language: Optional[str] = None) -> Dict[str, Any]:
         """Transcribe a local audio file and return text and metadata."""
         audio = Path(audio_path)
         if not audio.exists():
             raise FileNotFoundError(f"Audio file not found: {audio}")
 
+        transcription_language = language or self.language
         segments, info = self.model.transcribe(
             str(audio),
-            language=self.language,
+            language=transcription_language,
             beam_size=self.beam_size,
+            best_of=self.best_of,
+            temperature=self.temperature,
             vad_filter=self.vad_filter,
         )
 
@@ -41,7 +47,7 @@ class TamilWhisperTranscriber:
         text = " ".join(text_parts)
         return {
             "text": text,
-            "language": getattr(info, "language", self.language),
+            "language": getattr(info, "language", transcription_language),
             "duration": getattr(info, "duration", None),
         }
 

@@ -7,8 +7,11 @@ paths:
 
 speech:
   whisper_model: small
+  whisper_model_size: small
   language: ta
-  beam_size: 5
+  beam_size: 8
+  best_of: 5
+  temperature: 0.0
   vad_filter: true
 
 embeddings:
