@@ -5,7 +5,6 @@ import hashlib
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
 
 import chromadb
 import yaml
@@ -22,16 +21,22 @@ class Chunk:
     index: int
 
 
+@dataclass
+class FileIngestionResult:
+    """Diagnostics for a single source file during ingestion."""
+
+    filename: str
+    file_type: str
+    extraction_succeeded: bool
+    extracted_char_count: int
+    chunk_count: int
+    skipped_reason: str | None = None
+
+
 def load_config(config_path: str) -> dict:
     """Load YAML configuration using UTF-8."""
     with open(config_path, "r", encoding="utf-8") as file:
         return yaml.safe_load(file)
-
-
-def read_text_files(literature_dir: Path) -> Iterable[tuple[str, str]]:
-    """Read UTF-8 Tamil text files from the configured literature directory."""
-    for path in sorted(literature_dir.glob("*.txt")):
-        yield path.name, path.read_text(encoding="utf-8", errors="strict")
 
 
 def chunk_text(text: str, chunk_size: int, chunk_overlap: int) -> list[str]:
@@ -51,14 +56,98 @@ def chunk_text(text: str, chunk_size: int, chunk_overlap: int) -> list[str]:
     return chunks
 
 
-def build_chunks(literature_dir: Path, chunk_size: int, chunk_overlap: int) -> list[Chunk]:
-    """Build chunk objects for every Tamil text file in the source directory."""
+def build_chunks(
+    literature_dir: Path,
+    chunk_size: int,
+    chunk_overlap: int,
+) -> tuple[list[Chunk], list[FileIngestionResult]]:
+    """Build chunk objects and diagnostics for files in the source directory."""
     all_chunks: list[Chunk] = []
-    for filename, text in read_text_files(literature_dir):
-        doc_id = hashlib.md5(filename.encode("utf-8")).hexdigest()
-        for idx, piece in enumerate(chunk_text(text, chunk_size=chunk_size, chunk_overlap=chunk_overlap)):
-            all_chunks.append(Chunk(doc_id=doc_id, source=filename, text=piece, index=idx))
-    return all_chunks
+    diagnostics: list[FileIngestionResult] = []
+
+    for path in sorted(p for p in literature_dir.iterdir() if p.is_file()):
+        file_type = path.suffix.lower() or "(no extension)"
+        if file_type != ".txt":
+            diagnostics.append(
+                FileIngestionResult(
+                    filename=path.name,
+                    file_type=file_type,
+                    extraction_succeeded=False,
+                    extracted_char_count=0,
+                    chunk_count=0,
+                    skipped_reason="unsupported type",
+                )
+            )
+            continue
+
+        try:
+            text = path.read_text(encoding="utf-8", errors="strict")
+        except Exception:
+            diagnostics.append(
+                FileIngestionResult(
+                    filename=path.name,
+                    file_type=file_type,
+                    extraction_succeeded=False,
+                    extracted_char_count=0,
+                    chunk_count=0,
+                    skipped_reason="parser failure",
+                )
+            )
+            continue
+
+        extracted_char_count = len(text)
+        pieces = chunk_text(text, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+        if not pieces:
+            diagnostics.append(
+                FileIngestionResult(
+                    filename=path.name,
+                    file_type=file_type,
+                    extraction_succeeded=True,
+                    extracted_char_count=extracted_char_count,
+                    chunk_count=0,
+                    skipped_reason="empty extraction",
+                )
+            )
+            continue
+
+        doc_id = hashlib.md5(path.name.encode("utf-8")).hexdigest()
+        for idx, piece in enumerate(pieces):
+            all_chunks.append(Chunk(doc_id=doc_id, source=path.name, text=piece, index=idx))
+
+        diagnostics.append(
+            FileIngestionResult(
+                filename=path.name,
+                file_type=file_type,
+                extraction_succeeded=True,
+                extracted_char_count=extracted_char_count,
+                chunk_count=len(pieces),
+            )
+        )
+
+    return all_chunks, diagnostics
+
+
+def print_ingestion_summary(results: list[FileIngestionResult]) -> None:
+    """Print a human-readable per-file ingestion summary."""
+    print("\n=== Ingestion File Summary ===")
+    if not results:
+        print("No files found in literature directory.")
+        return
+
+    for result in results:
+        status = "ok" if result.skipped_reason is None else f"skipped ({result.skipped_reason})"
+        print(
+            " | ".join(
+                [
+                    f"filename={result.filename}",
+                    f"type={result.file_type}",
+                    f"extraction_succeeded={result.extraction_succeeded}",
+                    f"chars={result.extracted_char_count}",
+                    f"chunks={result.chunk_count}",
+                    f"status={status}",
+                ]
+            )
+        )
 
 
 def ingest(config_path: str) -> None:
@@ -74,7 +163,8 @@ def ingest(config_path: str) -> None:
     collection_name = str(config["retrieval"]["collection_name"])
     embedding_model_name = str(config["embeddings"]["model_name"])
 
-    chunks = build_chunks(literature_dir, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+    chunks, diagnostics = build_chunks(literature_dir, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+    print_ingestion_summary(diagnostics)
     if not chunks:
         raise ValueError(f"No UTF-8 .txt documents found in {literature_dir}")
 
