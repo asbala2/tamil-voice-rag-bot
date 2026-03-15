@@ -51,12 +51,31 @@ def maybe_speak_answer(config_path: str, answer: str, speak: bool) -> str | None
     return audio_path
 
 
+def print_retrieved_sources(retrieved_chunks: list[dict]) -> list[str]:
+    """Print unique retrieved source filenames in ranked order."""
+    seen = set()
+    ordered_sources: list[str] = []
+    for chunk in retrieved_chunks:
+        source = str(chunk.get("source", "unknown"))
+        if source not in seen:
+            seen.add(source)
+            ordered_sources.append(source)
+
+    print("\n=== Retrieved Sources ===")
+    if not ordered_sources:
+        print("(No sources retrieved)")
+    else:
+        for idx, source in enumerate(ordered_sources, start=1):
+            print(f"{idx}. {source}")
+    return ordered_sources
+
+
 def run_text_qa(
     config_path: str,
     question: str,
     top_k: int | None = None,
     speak: bool = False,
-) -> None:
+) -> list[str]:
     """Retrieve context from Chroma, print Tamil answer, and optionally generate voice output."""
     from llm.ollama_client import OllamaTamilQA
     from rag.retriever import TamilRetriever
@@ -69,12 +88,14 @@ def run_text_qa(
 
     print("\n=== Question ===")
     print(question)
+    sources = print_retrieved_sources(retrieved_chunks)
     print("\n=== Retrieved Chunks ===")
     print(json.dumps(retrieved_chunks, ensure_ascii=False, indent=2))
     print("\n=== Answer ===")
     print(answer)
 
     maybe_speak_answer(config_path=config_path, answer=answer, speak=speak)
+    return sources
 
 
 def run_audio_qa(

@@ -100,12 +100,17 @@ def main() -> None:
                 print("Skipping answer generation because no text was recognized.\n")
                 continue
 
-            run_text_qa(
+            sources = run_text_qa(
                 config_path=args.config,
                 question=question_text,
                 top_k=args.top_k,
                 speak=args.speak,
             )
+            print("\n=== Retrieved Source Filenames (Voice Assistant) ===")
+            if not sources:
+                print("(No sources retrieved)")
+            else:
+                print(", ".join(sources))
             print("\n--- Ready for next turn ---\n")
     except KeyboardInterrupt:
         print("\nExiting voice assistant. Goodbye!")
