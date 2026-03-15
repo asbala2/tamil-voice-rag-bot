@@ -32,10 +32,10 @@ llm:
     Be concise, accurate, and respectful.
 
 tts:
-  enabled: false
+  enabled: true
   engine: piper
   piper_binary: piper
-  model_path: data/models/piper/ta_IN-kani-medium.onnx
-  config_path: data/models/piper/ta_IN-kani-medium.onnx.json
+  model_path: data/models/piper/ta_IN-Valluvar-medium.onnx
+  config_path: data/models/piper/ta_IN-Valluvar-medium.onnx.json
   output_file: data/output/output_answer.wav
   auto_play: true
