@@ -62,7 +62,7 @@ def transcribe_recording(transcriber: TamilWhisperTranscriber, audio, sample_rat
 
     try:
         sf.write(temp_path, audio, sample_rate)
-        result = transcriber.transcribe_file(str(temp_path))
+        result = transcriber.transcribe_file(str(temp_path), language="ta")
         return result["text"].strip()
     finally:
         temp_path.unlink(missing_ok=True)
@@ -93,7 +93,7 @@ def main() -> None:
             )
 
             question_text = transcribe_recording(transcriber=transcriber, audio=audio, sample_rate=sample_rate)
-            print("\n=== Recognized Text ===")
+            print("\n=== Recognized Tamil Text (தமிழ்) ===")
             print(question_text if question_text else "(No speech recognized)")
 
             if not question_text:

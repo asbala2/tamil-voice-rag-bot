@@ -145,6 +145,21 @@ python scripts/run_voice_assistant.py --duration 8 --top-k 5 --speak
 
 Press `Ctrl+C` at any time to stop the assistant loop.
 
+### Tamil transcription quality tuning
+
+For better Tamil recognition accuracy, tune the `speech` section in `config.yaml`:
+
+```yaml
+speech:
+  whisper_model_size: medium   # options: base, small, medium
+  language: ta                 # force Tamil decoding
+  beam_size: 8
+  best_of: 5
+  temperature: 0.0
+```
+
+`small` is CPU-friendly, while `medium` usually improves accuracy on clear speech.
+
 ## CLI commands
 
 ```bash
