@@ -9,7 +9,8 @@ Audio / Mic -> Whisper -> Question Text -> RAG over Tamil documents -> Ollama an
 - `speech/whisper_transcribe.py` - transcribe Tamil audio with Faster-Whisper
 - `rag/ingest.py` - chunk Tamil text documents and build a Chroma vector store
 - `rag/retriever.py` - retrieve top-k context chunks for a question
-- `llm/ollama_client.py` - send prompt + retrieved context to Ollama
+- `llm/ollama_client.py` - load system instruction + send prompt + retrieved context to Ollama
+- `prompts/system_prompt_tamil.txt` - editable Tamil assistant system instruction (UTF-8)
 - `scripts/run_demo.py` - simple CLI entry point with optional speech reply (`--speak`)
 - `tts/piper_speak.py` - Piper Python API-based Tamil speech synthesis
 
@@ -92,6 +93,16 @@ Supported file types:
 Note: scanned/image-only PDFs are not supported yet.
 
 A sample text file is already included.
+
+### Assistant instruction (system prompt)
+
+Edit this file to change the assistant behavior:
+
+```text
+prompts/system_prompt_tamil.txt
+```
+
+The runtime loader reads this UTF-8 file path from `llm.system_prompt_file` in `config.yaml`.
 
 ### 5) Build the vector DB
 
