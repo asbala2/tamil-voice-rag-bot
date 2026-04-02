@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import re
 import string
 import subprocess
 import sys
@@ -14,6 +15,61 @@ class PiperSpeaker:
     """Tamil speech synthesis using Piper's Python API and local ONNX voice files."""
 
     _ALLOWED_PUNCTUATION = set(string.punctuation) | {"…", "“", "”", "‘", "’", "-", "–", "—"}
+    _SYMBOL_REPLACEMENTS: tuple[tuple[str, str], ...] = (
+        (r"\*", " "),
+        (r"[()\[\]{}<>]", " "),
+        (r"[/\\]", " அல்லது "),
+        (r":", ", "),
+        (r";", ", "),
+        (r"&", " மற்றும் "),
+        (r"[@#^~|`]", " "),
+        (r"[_=+]", " "),
+    )
+    _ENGLISH_WORD_MAP: dict[str, str] = {
+        "ai": "ஏ ஐ",
+        "api": "ஏ பி ஐ",
+        "app": "அப்",
+        "bot": "பாட்",
+        "cpu": "சி பி யு",
+        "gpu": "ஜி பி யு",
+        "demo": "டெமோ",
+        "json": "ஜேசன்",
+        "llm": "எல் எல் எம்",
+        "ollama": "ஒல்லாமா",
+        "pdf": "பி டி எப்",
+        "python": "பைதான்",
+        "rag": "ராக்",
+        "tts": "டி டி எஸ்",
+        "url": "யு ஆர் எல்",
+    }
+    _ENGLISH_LETTER_MAP: dict[str, str] = {
+        "a": "ஏ",
+        "b": "பி",
+        "c": "சி",
+        "d": "டி",
+        "e": "ஈ",
+        "f": "எஃப்",
+        "g": "ஜி",
+        "h": "எச்",
+        "i": "ஐ",
+        "j": "ஜே",
+        "k": "கே",
+        "l": "எல்",
+        "m": "எம்",
+        "n": "என்",
+        "o": "ஓ",
+        "p": "பி",
+        "q": "க்யூ",
+        "r": "ஆர்",
+        "s": "எஸ்",
+        "t": "டி",
+        "u": "யு",
+        "v": "வி",
+        "w": "டபிள்யூ",
+        "x": "எக்ஸ்",
+        "y": "வை",
+        "z": "செட்",
+    }
 
     def __init__(self, config_path: str = "config.yaml") -> None:
         """Load Piper settings from config.yaml."""
@@ -80,6 +136,28 @@ class PiperSpeaker:
         normalized = " ".join("".join(sanitized_chars).split())
         return normalized or "பதில் கிடைக்கவில்லை."
 
+    def _normalize_tts_text(self, text: str) -> str:
+        """Normalize mixed Tamil/English answer text for smoother Tamil TTS playback."""
+
+        def replace_english_word(match: re.Match[str]) -> str:
+            word = match.group(0)
+            lowered = word.lower()
+            if lowered in self._ENGLISH_WORD_MAP:
+                return self._ENGLISH_WORD_MAP[lowered]
+
+            letters = [self._ENGLISH_LETTER_MAP[ch] for ch in lowered if ch in self._ENGLISH_LETTER_MAP]
+            return " ".join(letters) if letters else " "
+
+        normalized_text = text
+        for pattern, replacement in self._SYMBOL_REPLACEMENTS:
+            normalized_text = re.sub(pattern, replacement, normalized_text)
+
+        normalized_text = re.sub(r"\b[A-Za-z]+\b", replace_english_word, normalized_text)
+        normalized_text = re.sub(r"[!?]{2,}", ".", normalized_text)
+        normalized_text = re.sub(r"\.{2,}", ".", normalized_text)
+        normalized_text = re.sub(r"\s+", " ", normalized_text).strip()
+        return normalized_text or "பதில் கிடைக்கவில்லை."
+
     def _resolve_wav_params(self, voice: object) -> tuple[int, int, int]:
         """Resolve WAV metadata from Piper voice/model configuration."""
 
@@ -145,7 +223,8 @@ class PiperSpeaker:
         target = Path(output_path) if output_path else self.output_file
         target.parent.mkdir(parents=True, exist_ok=True)
 
-        safe_text = self._sanitize_text(text)
+        normalized_text = self._normalize_tts_text(text)
+        safe_text = self._sanitize_text(normalized_text)
 
         try:
             from piper.voice import PiperVoice
