@@ -15,7 +15,7 @@ Audio / Mic -> Whisper -> Question Text -> RAG over Tamil documents -> Ollama an
 
 ## Suggested first MVP
 
-1. Put a few Tamil `.txt` files into `data/literature/`
+1. Put Tamil source files (`.txt`, `.pdf`, `.docx`) into `data/literature/`
 2. Build the vector DB
 3. Run the pipeline with an audio file
 4. Get a Tamil text answer
@@ -75,20 +75,34 @@ ollama serve
 ollama pull gemma3:4b
 ```
 
-### 4) Add Tamil source text
+### 4) Add Tamil source documents
 
-Place one or more UTF-8 Tamil `.txt` files in:
+Place one or more Tamil source files in:
 
 ```text
 data/literature/
 ```
 
-A sample file is already included.
+Supported file types:
+
+- `.txt` (UTF-8 plain text)
+- `.pdf` (text-searchable PDFs)
+- `.docx` (Microsoft Word documents)
+
+Note: scanned/image-only PDFs are not supported yet.
+
+A sample text file is already included.
 
 ### 5) Build the vector DB
 
 ```bash
 python rag/ingest.py --config config.yaml
+```
+
+Optional: clean rebuild of the vector DB directory before ingestion.
+
+```bash
+python rag/ingest.py --config config.yaml --rebuild-store
 ```
 
 ### 6) Run end-to-end with an audio file
@@ -164,6 +178,7 @@ speech:
 
 ```bash
 python rag/ingest.py --config config.yaml
+python rag/ingest.py --config config.yaml --rebuild-store
 python scripts/run_demo.py --question "திருக்குறளில் தலைமை பற்றி என்ன சொல்லப்பட்டுள்ளது?"
 python scripts/run_demo.py --config config.yaml --question "திருக்குறளில் தலைமை பற்றி என்ன சொல்லப்படுகிறது?" --speak
 python scripts/run_demo.py --config config.yaml --audio path/to/question.wav --speak

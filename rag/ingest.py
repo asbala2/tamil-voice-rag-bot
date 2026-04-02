@@ -3,11 +3,15 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
+from xml.etree import ElementTree
+from zipfile import ZipFile
 
 import chromadb
 import yaml
+from pypdf import PdfReader
 from sentence_transformers import SentenceTransformer
 
 
@@ -30,7 +34,8 @@ class FileIngestionResult:
     extraction_succeeded: bool
     extracted_char_count: int
     chunk_count: int
-    skipped_reason: str | None = None
+    final_status: str
+    extraction_error: str | None = None
 
 
 def load_config(config_path: str) -> dict:
@@ -67,22 +72,9 @@ def build_chunks(
 
     for path in sorted(p for p in literature_dir.iterdir() if p.is_file()):
         file_type = path.suffix.lower() or "(no extension)"
-        if file_type != ".txt":
-            diagnostics.append(
-                FileIngestionResult(
-                    filename=path.name,
-                    file_type=file_type,
-                    extraction_succeeded=False,
-                    extracted_char_count=0,
-                    chunk_count=0,
-                    skipped_reason="unsupported type",
-                )
-            )
-            continue
-
         try:
-            text = path.read_text(encoding="utf-8", errors="strict")
-        except Exception:
+            text = extract_text(path)
+        except Exception as error:
             diagnostics.append(
                 FileIngestionResult(
                     filename=path.name,
@@ -90,7 +82,8 @@ def build_chunks(
                     extraction_succeeded=False,
                     extracted_char_count=0,
                     chunk_count=0,
-                    skipped_reason="parser failure",
+                    final_status="skipped",
+                    extraction_error=str(error),
                 )
             )
             continue
@@ -105,7 +98,7 @@ def build_chunks(
                     extraction_succeeded=True,
                     extracted_char_count=extracted_char_count,
                     chunk_count=0,
-                    skipped_reason="empty extraction",
+                    final_status="skipped",
                 )
             )
             continue
@@ -121,10 +114,49 @@ def build_chunks(
                 extraction_succeeded=True,
                 extracted_char_count=extracted_char_count,
                 chunk_count=len(pieces),
+                final_status="ingested",
             )
         )
 
     return all_chunks, diagnostics
+
+
+def extract_text_from_txt(path: Path) -> str:
+    """Read UTF-8 text from plain text files."""
+    return path.read_text(encoding="utf-8", errors="strict")
+
+
+def extract_text_from_pdf(path: Path) -> str:
+    """Extract text from text-searchable PDF files."""
+    reader = PdfReader(str(path))
+    return "\n".join((page.extract_text() or "") for page in reader.pages)
+
+
+def extract_text_from_docx(path: Path) -> str:
+    """Extract text content from DOCX files without external DOCX dependencies."""
+    with ZipFile(path) as archive:
+        xml_content = archive.read("word/document.xml")
+    root = ElementTree.fromstring(xml_content)
+    namespace = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+    paragraphs: list[str] = []
+    for paragraph in root.findall(".//w:p", namespace):
+        texts = [node.text or "" for node in paragraph.findall(".//w:t", namespace)]
+        paragraph_text = "".join(texts).strip()
+        if paragraph_text:
+            paragraphs.append(paragraph_text)
+    return "\n".join(paragraphs)
+
+
+def extract_text(path: Path) -> str:
+    """Extract source text for supported document types."""
+    file_type = path.suffix.lower()
+    if file_type == ".txt":
+        return extract_text_from_txt(path)
+    if file_type == ".pdf":
+        return extract_text_from_pdf(path)
+    if file_type == ".docx":
+        return extract_text_from_docx(path)
+    raise ValueError(f"unsupported type: {file_type or '(no extension)'}")
 
 
 def print_ingestion_summary(results: list[FileIngestionResult]) -> None:
@@ -135,7 +167,7 @@ def print_ingestion_summary(results: list[FileIngestionResult]) -> None:
         return
 
     for result in results:
-        status = "ok" if result.skipped_reason is None else f"skipped ({result.skipped_reason})"
+        error_suffix = f" | error={result.extraction_error}" if result.extraction_error else ""
         print(
             " | ".join(
                 [
@@ -144,18 +176,21 @@ def print_ingestion_summary(results: list[FileIngestionResult]) -> None:
                     f"extraction_succeeded={result.extraction_succeeded}",
                     f"chars={result.extracted_char_count}",
                     f"chunks={result.chunk_count}",
-                    f"status={status}",
+                    f"status={result.final_status}",
                 ]
             )
+            + error_suffix
         )
 
 
-def ingest(config_path: str) -> None:
+def ingest(config_path: str, rebuild_store: bool = False) -> None:
     """Ingest Tamil literature files into a Chroma vector database."""
     config = load_config(config_path)
 
     literature_dir = Path(config["paths"]["literature_dir"])
     vector_store_dir = Path(config["paths"]["vector_store_dir"])
+    if rebuild_store and vector_store_dir.exists():
+        shutil.rmtree(vector_store_dir)
     vector_store_dir.mkdir(parents=True, exist_ok=True)
 
     chunk_size = int(config["retrieval"]["chunk_size"])
@@ -166,7 +201,7 @@ def ingest(config_path: str) -> None:
     chunks, diagnostics = build_chunks(literature_dir, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     print_ingestion_summary(diagnostics)
     if not chunks:
-        raise ValueError(f"No UTF-8 .txt documents found in {literature_dir}")
+        raise ValueError(f"No supported documents produced chunks in {literature_dir}")
 
     embedder = SentenceTransformer(embedding_model_name, device="cpu")
     texts = [chunk.text for chunk in chunks]
@@ -205,11 +240,16 @@ def ingest(config_path: str) -> None:
 def main() -> None:
     """CLI entry point for Tamil literature ingestion."""
     parser = argparse.ArgumentParser(
-        description="Read Tamil UTF-8 text files and index them into Chroma.",
+        description="Read Tamil UTF-8 text/PDF/DOCX files and index them into Chroma.",
     )
     parser.add_argument("--config", default="config.yaml", help="Path to config YAML")
+    parser.add_argument(
+        "--rebuild-store",
+        action="store_true",
+        help="Delete the existing vector DB directory before ingesting.",
+    )
     args = parser.parse_args()
-    ingest(args.config)
+    ingest(args.config, rebuild_store=args.rebuild_store)
 
 
 if __name__ == "__main__":
