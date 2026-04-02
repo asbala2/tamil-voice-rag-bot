@@ -27,12 +27,7 @@ llm:
   model: gemma3:4b
   temperature: 0.2
   num_predict: 400
-  system_prompt: |
-    You are a Tamil literature and knowledge assistant.
-    Answer in clear Tamil.
-    Use only the provided context when possible.
-    If the context is insufficient, say so honestly.
-    Be concise, accurate, and respectful.
+  system_prompt_file: prompts/system_prompt_tamil.txt
 
 tts:
   enabled: true

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Dict, Any
 
 import requests
@@ -18,7 +19,16 @@ class OllamaTamilQA:
         self.model = self.config["llm"]["model"]
         self.temperature = float(self.config["llm"]["temperature"])
         self.num_predict = int(self.config["llm"]["num_predict"])
-        self.system_prompt = self.config["llm"]["system_prompt"]
+        prompt_file = self.config["llm"].get("system_prompt_file", "prompts/system_prompt_tamil.txt")
+        prompt_path = (Path(config_path).resolve().parent / prompt_file).resolve()
+
+        if not prompt_path.exists():
+            raise FileNotFoundError(
+                f"System prompt file not found: {prompt_path}. "
+                "Create the file or update llm.system_prompt_file in config.yaml."
+            )
+
+        self.system_prompt = prompt_path.read_text(encoding="utf-8").strip()
 
     def build_prompt(self, question: str, retrieved_chunks: list[dict[str, Any]]) -> str:
         context = format_context(retrieved_chunks)
