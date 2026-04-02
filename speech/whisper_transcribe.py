@@ -19,7 +19,7 @@ class TamilWhisperTranscriber:
 
         speech_config = self.config["speech"]
         self.model_name = speech_config.get("whisper_model_size") or speech_config["whisper_model"]
-        self.language = speech_config.get("language", "ta")
+        self.language = self._parse_language_mode(speech_config.get("language", "ta"))
         self.beam_size = int(speech_config.get("beam_size", 8))
         self.best_of = int(speech_config.get("best_of", 5))
         self.temperature = float(speech_config.get("temperature", 0.0))
@@ -27,13 +27,25 @@ class TamilWhisperTranscriber:
 
         self.model = WhisperModel(self.model_name, device="cpu", compute_type="int8")
 
+
+    @staticmethod
+    def _parse_language_mode(language_value: Optional[str]) -> Optional[str]:
+        """Return a Faster-Whisper language code or ``None`` for auto-detection."""
+        if language_value is None:
+            return None
+
+        normalized = str(language_value).strip().lower()
+        if normalized in {"", "auto", "none"}:
+            return None
+        return normalized
+
     def transcribe_file(self, audio_path: str, language: Optional[str] = None) -> Dict[str, Any]:
         """Transcribe a local audio file and return text and metadata."""
         audio = Path(audio_path)
         if not audio.exists():
             raise FileNotFoundError(f"Audio file not found: {audio}")
 
-        transcription_language = language or self.language
+        transcription_language = self._parse_language_mode(language) if language is not None else self.language
         segments, info = self.model.transcribe(
             str(audio),
             language=transcription_language,
@@ -48,6 +60,7 @@ class TamilWhisperTranscriber:
         return {
             "text": text,
             "language": getattr(info, "language", transcription_language),
+            "language_mode": transcription_language or "auto",
             "duration": getattr(info, "duration", None),
         }
 

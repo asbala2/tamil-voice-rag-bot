@@ -166,13 +166,14 @@ For better Tamil recognition accuracy, tune the `speech` section in `config.yaml
 ```yaml
 speech:
   whisper_model_size: medium   # options: base, small, medium
-  language: ta                 # force Tamil decoding
+  language: auto               # auto for Tamil+English mixed speech, ta for Tamil-only
   beam_size: 8
   best_of: 5
   temperature: 0.0
 ```
 
 `small` is CPU-friendly, while `medium` usually improves accuracy on clear speech.
+Use `language: auto` to preserve English words in Latin script for mixed Tamil-English questions.
 
 ## CLI commands
 

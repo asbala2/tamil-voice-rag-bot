@@ -4,6 +4,7 @@ import argparse
 import sys
 import tempfile
 from pathlib import Path
+from typing import Any, Dict
 
 import sounddevice as sd
 import soundfile as sf
@@ -17,6 +18,25 @@ from speech.whisper_transcribe import TamilWhisperTranscriber
 
 
 DEFAULT_SAMPLE_RATE = 16000
+
+COMMON_TECH_WORD_NORMALIZATION: Dict[str, str] = {
+    "ஜிபிடி": "GPT",
+    "ஏஐ": "AI",
+    "எய்ஐ": "AI",
+    "பைத்தான்": "Python",
+    "ஒல்லாமா": "Ollama",
+    "ஓல்லாமா": "Ollama",
+    "விஸ்பர்": "Whisper",
+    "ராக்": "RAG",
+}
+
+
+def normalize_mixed_query_text(text: str) -> str:
+    """Normalize common technical Tamil transliterations into Latin spellings."""
+    normalized_text = text
+    for tamil_word, english_word in COMMON_TECH_WORD_NORMALIZATION.items():
+        normalized_text = normalized_text.replace(tamil_word, english_word)
+    return normalized_text
 
 
 def parse_args() -> argparse.Namespace:
@@ -55,15 +75,16 @@ def record_microphone_audio(duration_seconds: float, sample_rate: int):
     return audio, sample_rate
 
 
-def transcribe_recording(transcriber: TamilWhisperTranscriber, audio, sample_rate: int) -> str:
+def transcribe_recording(transcriber: TamilWhisperTranscriber, audio, sample_rate: int) -> Dict[str, Any]:
     """Save in-memory recording to a temporary WAV file and transcribe it."""
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_file:
         temp_path = Path(tmp_file.name)
 
     try:
         sf.write(temp_path, audio, sample_rate)
-        result = transcriber.transcribe_file(str(temp_path), language="ta")
-        return result["text"].strip()
+        result = transcriber.transcribe_file(str(temp_path))
+        result["text"] = result.get("text", "").strip()
+        return result
     finally:
         temp_path.unlink(missing_ok=True)
 
@@ -92,17 +113,29 @@ def main() -> None:
                 sample_rate=args.sample_rate,
             )
 
-            question_text = transcribe_recording(transcriber=transcriber, audio=audio, sample_rate=sample_rate)
-            print("\n=== Recognized Tamil Text (தமிழ்) ===")
-            print(question_text if question_text else "(No speech recognized)")
+            transcription_result = transcribe_recording(
+                transcriber=transcriber,
+                audio=audio,
+                sample_rate=sample_rate,
+            )
+            raw_text = transcription_result.get("text", "")
+            normalized_text = normalize_mixed_query_text(raw_text)
+            detected_language = transcription_result.get("language", "unknown")
+            language_mode = transcription_result.get("language_mode", "auto")
 
-            if not question_text:
+            print("\n=== Recognized Text (Debug) ===")
+            print(f"Language mode: {language_mode} | Detected: {detected_language}")
+            print(f"Raw: {raw_text if raw_text else '(No speech recognized)'}")
+            if normalized_text != raw_text:
+                print(f"Normalized: {normalized_text}")
+
+            if not normalized_text:
                 print("Skipping answer generation because no text was recognized.\n")
                 continue
 
             sources = run_text_qa(
                 config_path=args.config,
-                question=question_text,
+                question=normalized_text,
                 top_k=args.top_k,
                 speak=args.speak,
             )
