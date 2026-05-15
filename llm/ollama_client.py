@@ -50,8 +50,41 @@ class OllamaTamilQA:
 - முடிந்தால் ஆதாரப் பகுதிகளை சுருக்கமாக குறிப்பிடவும்.
 """
 
+    def build_general_prompt(self, question: str) -> str:
+        """Build a Tamil-first prompt for normal chat without retrieval context."""
+        return f"""{self.system_prompt}
+
+பயனர் கேள்வி:
+{question}
+
+வழிமுறைகள்:
+- பதிலை தமிழில் இயல்பாகவும் தெளிவாகவும் எழுதவும்.
+- இது பொதுவான உரையாடல்/பொது அறிவு கேள்வி; RAG ஆதார பகுதி தேவை இல்லை.
+- உதவியாக இருந்தால் சுருக்கமான விளக்கம் மற்றும் எடுத்துக்காட்டு கொடுக்கவும்.
+"""
+
     def answer(self, question: str, retrieved_chunks: list[dict[str, Any]]) -> str:
         prompt = self.build_prompt(question, retrieved_chunks)
+        response = requests.post(
+            f"{self.host}/api/generate",
+            json={
+                "model": self.model,
+                "prompt": prompt,
+                "stream": False,
+                "options": {
+                    "temperature": self.temperature,
+                    "num_predict": self.num_predict,
+                },
+            },
+            timeout=180,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        return payload.get("response", "").strip()
+
+    def answer_general(self, question: str) -> str:
+        """Answer a general Tamil query directly with the LLM (no retrieval)."""
+        prompt = self.build_general_prompt(question)
         response = requests.post(
             f"{self.host}/api/generate",
             json={

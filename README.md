@@ -156,7 +156,11 @@ python scripts/run_demo.py --question "திருக்குறளில் �
 
 ### 8) Run live microphone voice assistant
 
-This loop records from your default microphone at **16 kHz**, transcribes with Faster-Whisper, prints the recognized Tamil text, and then runs the same RAG + Ollama pipeline used by text QA.
+This loop records from your default microphone at **16 kHz**, transcribes with Faster-Whisper, prints the recognized Tamil text, and then runs the same router-aware QA flow used by text mode.
+
+Routing behavior (debug printed each turn):
+- `Route: RAG` -> query matched document/literature keywords and uses retrieval + Ollama.
+- `Route: General LLM` -> query is general chat and skips retrieval.
 
 ```bash
 python scripts/run_voice_assistant.py --config config.yaml
