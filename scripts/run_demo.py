@@ -78,13 +78,22 @@ def run_text_qa(
 ) -> list[str]:
     """Retrieve context from Chroma, print Tamil answer, and optionally generate voice output."""
     from llm.ollama_client import OllamaTamilQA
+    from rag.query_router import QueryRouter
     from rag.retriever import TamilRetriever
 
-    retriever = TamilRetriever(config_path=config_path)
+    router = QueryRouter()
+    route_result = router.route(question)
     qa_client = OllamaTamilQA(config_path=config_path)
 
-    retrieved_chunks = retriever.retrieve(question, top_k=top_k)
-    answer = qa_client.answer(question, retrieved_chunks)
+    retrieved_chunks: list[dict] = []
+    if route_result.route == "document_related":
+        print("Route: RAG")
+        retriever = TamilRetriever(config_path=config_path)
+        retrieved_chunks = retriever.retrieve(question, top_k=top_k)
+        answer = qa_client.answer(question, retrieved_chunks)
+    else:
+        print("Route: General LLM")
+        answer = qa_client.answer_general(question)
 
     print("\n=== Question ===")
     print(question)
