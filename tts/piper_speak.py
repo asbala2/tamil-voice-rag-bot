@@ -41,6 +41,11 @@ class PiperSpeaker:
         "rag": "ராக்",
         "tts": "டி டி எஸ்",
         "url": "யு ஆர் எல்",
+        "leadership": "லீடர்ஷிப்",
+        "basic": "பேசிக்",
+        "idea": "ஐடியா",
+        "concept": "கான்செப்ட்",
+        "explain": "எக்ஸ்ப்ளெயின்",
     }
     _ENGLISH_LETTER_MAP: dict[str, str] = {
         "a": "ஏ",
@@ -153,8 +158,11 @@ class PiperSpeaker:
             normalized_text = re.sub(pattern, replacement, normalized_text)
 
         normalized_text = re.sub(r"\b[A-Za-z]+\b", replace_english_word, normalized_text)
+        # Drop standalone symbols that do not add spoken value.
+        normalized_text = re.sub(r"[\"'“”‘’]+", " ", normalized_text)
         normalized_text = re.sub(r"[!?]{2,}", ".", normalized_text)
         normalized_text = re.sub(r"\.{2,}", ".", normalized_text)
+        normalized_text = re.sub(r"[,:;]+", ", ", normalized_text)
         normalized_text = re.sub(r"\s+", " ", normalized_text).strip()
         return normalized_text or "பதில் கிடைக்கவில்லை."
 
